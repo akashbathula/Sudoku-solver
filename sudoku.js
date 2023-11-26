@@ -1,96 +1,171 @@
+"use strict";
 
-var numSelected = null;
-var tileSelected = null;
+var EASY_PUZZLE = "1-58-2----9--764-52--4--819-19--73-6762-83-9-----61-5---76---3-43--2-5-16--3-89--";
+var MEDIUM_PUZZLE = "-3-5--8-45-42---1---8--9---79-8-61-3-----54---5------78-----7-2---7-46--61-3--5--";
+var HARD_PUZZLE = "8----------36------7--9-2---5---7-------457-----1---3---1----68--85---1--9----4--";
 
-var errors = 0;
+// Set this variable to true to publicly expose otherwise private functions inside of SudokuSolver
+var TESTABLE = true;
 
-var board = [
-    "--74916-5",
-    "2---6-3-9",
-    "-----7-1-",
-    "-586----4",
-    "--3----9-",
-    "--62--187",
-    "9-4-7---2",
-    "67-83----",
-    "81--45---"
-]
+var SudokuSolver = function (testable) {
+  var solver;
 
-var solution = [
-    "387491625",
-    "241568379",
-    "569327418",
-    "758619234",
-    "123784596",
-    "496253187",
-    "934176852",
-    "675832941",
-    "812945763"
-]
-
-window.onload = function() {
-    setGame();
-}
-
-function setGame() {
-    // Digits 1-9
-    for (let i = 1; i <= 9; i++) {
-        //<div id="1" class="number">1</div>
-        let number = document.createElement("div");
-        number.id = i
-        number.innerText = i;
-        number.addEventListener("click", selectNumber);
-        number.classList.add("number");
-        document.getElementById("digits").appendChild(number);
+  // PUBLIC FUNCTIONS
+  function solve(boardString) {
+    var boardArray = boardString.split("");
+    if (boardIsInvalid(boardArray)) {
+      return false;
     }
+    return recursiveSolve(boardString);
+  }
 
-    // Board 9x9
-    for (let r = 0; r < 9; r++) {
-        for (let c = 0; c < 9; c++) {
-            let tile = document.createElement("div");
-            tile.id = r.toString() + "-" + c.toString();
-            if (board[r][c] != "-") {
-                tile.innerText = board[r][c];
-                tile.classList.add("tile-start");
-            }
-            if (r == 2 || r == 5) {
-                tile.classList.add("horizontal-line");
-            }
-            if (c == 2 || c == 5) {
-                tile.classList.add("vertical-line");
-            }
-            tile.addEventListener("click", selectTile);
-            tile.classList.add("tile");
-            document.getElementById("board").append(tile);
-        }
+  function solveAndPrint(boardString) {
+    var solvedBoard = solve(boardString);
+    console.log(toString(solvedBoard.split("")));
+    return solvedBoard;
+  }
+
+  // PRIVATE FUNCTIONS
+  function recursiveSolve(boardString) {
+    var boardArray = boardString.split("");
+    if (boardIsSolved(boardArray)) {
+      return boardArray.join("");
     }
-}
-
-function selectNumber(){
-    if (numSelected != null) {
-        numSelected.classList.remove("number-selected");
+    var cellPossibilities = getNextCellAndPossibilities(boardArray);
+    var nextUnsolvedCellIndex = cellPossibilities.index;
+    var possibilities = cellPossibilities.choices;
+    for (var i = 0; i < possibilities.length; i++) {
+      boardArray[nextUnsolvedCellIndex] = possibilities[i];
+      var solvedBoard = recursiveSolve(boardArray.join(""));
+      if (solvedBoard) {
+        return solvedBoard;
+      }
     }
-    numSelected = this;
-    numSelected.classList.add("number-selected");
-}
+    return false;
+  }
 
-function selectTile() {
-    if (numSelected) {
-        if (this.innerText != "") {
-            return;
-        }
+  function boardIsInvalid(boardArray) {
+    return !boardIsValid(boardArray);
+  }
 
-        // "0-0" "0-1" .. "3-1"
-        let coords = this.id.split("-"); //["0", "0"]
-        let r = parseInt(coords[0]);
-        let c = parseInt(coords[1]);
+  function boardIsValid(boardArray) {
+    return allRowsValid(boardArray) && allColumnsValid(boardArray) && allBoxesValid(boardArray);
+  }
 
-        if (solution[r][c] == numSelected.id) {
-            this.innerText = numSelected.id;
-        }
-        else {
-            errors += 1;
-            document.getElementById("errors").innerText = errors;
-        }
+  function boardIsSolved(boardArray) {
+    for (var i = 0; i < boardArray.length; i++) {
+      if (boardArray[i] === "-") {
+        return false;
+      }
     }
-}
+    return true;
+  }
+
+  function getNextCellAndPossibilities(boardArray) {
+    for (var i = 0; i < boardArray.length; i++) {
+      if (boardArray[i] === "-") {
+        var existingValues = getAllIntersections(boardArray, i);
+        var choices = ["1", "2", "3", "4", "5", "6", "7", "8", "9"].filter(function (num) {
+          return existingValues.indexOf(num) < 0;
+        });
+        return { index: i, choices: choices };
+      }
+    }
+  }
+
+  function getAllIntersections(boardArray, i) {
+    return getRow(boardArray, i).concat(getColumn(boardArray, i)).concat(getBox(boardArray, i));
+  }
+
+  function allRowsValid(boardArray) {
+    return [0, 9, 18, 27, 36, 45, 54, 63, 72].map(function (i) {
+      return getRow(boardArray, i);
+    }).reduce(function (validity, row) {
+      return collectionIsValid(row) && validity;
+    }, true);
+  }
+
+  function getRow(boardArray, i) {
+    var startingEl = Math.floor(i / 9) * 9;
+    return boardArray.slice(startingEl, startingEl + 9);
+  }
+
+  function allColumnsValid(boardArray) {
+    return [0, 1, 2, 3, 4, 5, 6, 7, 8].map(function (i) {
+      return getColumn(boardArray, i);
+    }).reduce(function (validity, row) {
+      return collectionIsValid(row) && validity;
+    }, true);
+  }
+
+  function getColumn(boardArray, i) {
+    var startingEl = Math.floor(i % 9);
+    return [0, 1, 2, 3, 4, 5, 6, 7, 8].map(function (num) {
+      return boardArray[startingEl + num * 9];
+    });
+  }
+
+  function allBoxesValid(boardArray) {
+    return [0, 3, 6, 27, 30, 33, 54, 57, 60].map(function (i) {
+      return getBox(boardArray, i);
+    }).reduce(function (validity, row) {
+      return collectionIsValid(row) && validity;
+    }, true);
+  }
+
+  function getBox(boardArray, i) {
+    var boxCol = Math.floor(i / 3) % 3;
+    var boxRow = Math.floor(i / 27);
+    var startingIndex = boxCol * 3 + boxRow * 27;
+    return [0, 1, 2, 9, 10, 11, 18, 19, 20].map(function (num) {
+      return boardArray[startingIndex + num];
+    });
+  }
+
+  function collectionIsValid(collection) {
+    var numCounts = {};
+    for(var i = 0; i < collection.length; i++) {
+      if (collection[i] != "-") {
+        if (numCounts[collection[i]] === undefined) {
+          numCounts[collection[i]] = 1;
+        } else {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  function toString(boardArray) {
+    return [0, 9, 18, 27, 36, 45, 54, 63, 72].map(function (i) {
+      return getRow(boardArray, i).join(" ");
+    }).join("\n");
+  }
+
+  if (testable) {
+    // These methods will be exposed publicly when testing is on.
+    solver = { 
+      solve: solve,
+      solveAndPrint: solveAndPrint,
+      recursiveSolve: recursiveSolve,
+      boardIsInvalid: boardIsInvalid,
+      boardIsValid: boardIsValid,
+      boardIsSolved: boardIsSolved,
+      getNextCellAndPossibilities: getNextCellAndPossibilities,
+      getAllIntersections: getAllIntersections,
+      allRowsValid: allRowsValid,
+      getRow: getRow,
+      allColumnsValid: allColumnsValid,
+      getColumn: getColumn,
+      allBoxesValid: allBoxesValid,
+      getBox: getBox,
+      collectionIsValid: collectionIsValid,
+      toString: toString };
+  } else {
+    // These will be the only public methods when testing is off.
+    solver = { solve: solve,
+      solveAndPrint: solveAndPrint };
+  }
+
+  return solver;
+}(TESTABLE);
